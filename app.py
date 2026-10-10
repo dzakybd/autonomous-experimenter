@@ -86,18 +86,18 @@ def explore(user):
         fig.add_scattermap(lat=rec["lat"], lon=rec["lng"], mode="markers", name=f"top-10: {name}",
                            marker=dict(size=13, color=symbol_color), text=rec["category"])
         for rank, (_, it) in enumerate(rec.iterrows(), 1):
-            rows.append([name, rank, it["category"], round(float(CT.near[r, np.searchsorted(CT.Q, it["item"])]), 2),
+            rows.append([name, rank, f"#{it['item']}", it["category"], round(float(CT.near[r, np.searchsorted(CT.Q, it["item"])]), 2),
                          "HIT" if it["item"] == truth else ""])
     t = ITEMS.iloc[truth]
     fig.add_scattermap(lat=[t["lat"]], lon=[t["lng"]], mode="markers", name="actual next Quik visit",
                        marker=dict(size=20, color="#facc15"), text=[t["category"]])
-    fig.update_layout(map=dict(style="open-street-map", center=dict(lat=t["lat"], lon=t["lng"]), zoom=11),
+    fig.update_layout(map=dict(style="open-street-map", center=dict(lat=t["lat"], lon=t["lng"]), zoom=12),
                       height=480, margin=dict(l=0, r=0, t=0, b=0), legend=dict(orientation="h"))
     counts = hist["vertical"].value_counts().reindex(["food", "quik", "shops"], fill_value=0)
     info = (f"**User {user}**: {counts['food']} Food, {counts['quik']} Quik, {counts['shops']} Shops check-ins "
             f"before the target. Actual next Quik visit: **{t['category']}** "
             f"({'repeat' if truth in set(hist['item']) else 'new venue'}).")
-    table = pd.DataFrame(rows, columns=["model", "rank", "venue category", "proximity (0-1)", "hit"])
+    table = pd.DataFrame(rows, columns=["model", "rank", "venue", "category", "proximity (0-1)", "hit"])
     return fig, info, table
 
 
@@ -125,7 +125,10 @@ with gr.Blocks(title="Autonomous Experimenter") as demo:
         go_btn.click(run_loop, [iters, llm], [log, plot, report], concurrency_limit=1)
     with gr.Tab("Explore a user"):
         users = sorted(CT.U.tolist())
-        user = gr.Dropdown(users, value=users[0], label="User (held-out test visit)")
+        best_cfg = json.loads(ex.BEST.read_text()) if ex.BEST.exists() else ex.make("pop")
+        win = (top10(best_cfg) == CT.truth[:, None]).any(1) & ~(top10(ex.make("pop")) == CT.truth[:, None]).any(1)
+        first = int(CT.U[np.flatnonzero(win)[0]]) if win.any() else users[0]  # a user the winner gets right
+        user = gr.Dropdown(users, value=first, label="User (held-out test visit)")
         info = gr.Markdown()
         user_map = gr.Plot()
         recs = gr.Dataframe(label="Top-10 Quik venues: popularity vs winner")

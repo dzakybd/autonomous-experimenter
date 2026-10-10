@@ -1,34 +1,49 @@
-# Autonomous Experimenter: super-app personalization
+---
+title: Autonomous Experimenter
+emoji: 🧪
+colorFrom: green
+colorTo: indigo
+sdk: gradio
+sdk_version: 6.30.0
+python_version: "3.12"
+app_file: app.py
+pinned: false
+short_description: Autoresearch loop for cross-vertical recommendations
+---
+
+# Autonomous Experimenter: cross-vertical personalization
 
 Careem AI Challenge, option 2: an AI that runs experiments, compares models, and summarizes the results without a human in the loop.
 
-The problem it works on is the one in the Personalization role: recommend a user's **next Quik (quick-commerce) order** using what they do in **Food, Quik, and Shops**, across Dubai zones, including users who have barely used Quik.
+**Live demo:** https://huggingface.co/spaces/dzakybd/autonomous-experimenter · **Code:** https://github.com/dzakybd/autonomous-experimenter
+
+The problem is the one in the Personalization role: recommend a user's next **Quik**-style purchase using what they do in **Food, Quik, and Shops**, with location, including users who have barely used Quik.
 
 ## Summary (100 words)
 
-An autonomous experimenter for cross-vertical personalization, built on the autoresearch loop (modify, verify, keep or discard). On a simulated Dubai super-app log (Food, Quik, Shops; 75K orders), it tunes a next-Quik-order recommender: each iteration changes one thing (base model such as graph-based RP3beta, or one signal: cross-vertical history, zone popularity, repeat buying, attention over recent orders). A paired bootstrap over users keeps a change only if the gain isn't noise. Kept changes become git commits; results.tsv is the proposer's memory. On held-out orders: +142% NDCG@10 over popularity, +113% for cold-start users, 95% CI excluding zero.
+An autonomous experimenter for cross-vertical personalization, built on the autoresearch loop (modify, verify, keep or discard). On public Foursquare NYC check-ins mapped to Food, Quik-like convenience retail, and Shops, it tunes a next-Quik-visit recommender. Each iteration changes one thing: a base model (e.g. graph-based RP3beta) or one signal (cross-vertical history, proximity, repeat visits, attention over recent check-ins). A paired bootstrap over users keeps a change only if the gain isn't noise. Kept changes become git commits; results.tsv is the proposer's memory. On held-out visits: NDCG@10 0.074 → 0.558 over popularity; cold-start users 0.143 → 0.330.
 
 ## Run it
 
 ```bash
 uv run experimenter.py                     # heuristic proposer, no API key, a few seconds
 uv run --extra llm experimenter.py --llm   # Claude proposes each change and writes the conclusion
-uv run simulate.py                         # regenerate the data (seeded)
+uv run --extra app app.py                  # the Gradio demo
 ```
 
-Outputs: `results.tsv` (every experiment), `best_config.json`, `report.md`, and one git commit per kept change (`git log --oneline`).
+Outputs: `results.tsv` (every experiment), `best_config.json`, `report.md`, and one git commit per kept change (`git log --oneline`). The data downloads on first run.
 
-## The data (dummy, by design)
+## The data
 
-No public dataset combines food delivery, quick commerce, and retail with location (the Delivery Hero dataset's download is access-restricted). So `simulate.py` generates one with a known story. That is useful here: we can check that the experimenter finds the signals that really drive behaviour.
+[Foursquare NYC check-ins](https://huggingface.co/datasets/yyh11/FourSquare_checkin) (Yang et al., IEEE TSMC 2014): 227K check-ins by 1,083 users, Apr 2012 – Feb 2013, with venue category and coordinates. `prepare.py` maps categories to verticals and keeps venues with 5+ check-ins:
 
-| File | Contents |
-|---|---|
-| `data/users.csv` | 4,000 users, home zone (12 Dubai zones with lat/lng) |
-| `data/items.csv` | 400 Food, 500 Quik, 300 Shops items; 30% of Quik items are local to one zone |
-| `data/orders.csv` | 75,583 orders over 90 days (48K Food, 19.5K Quik, 8K Shops) |
+| Vertical | Venue categories | Venues | Check-ins |
+|---|---|---|---|
+| Quik | Deli / Bodega, Food & Drink Shop, Drugstore / Pharmacy, Convenience Store, Market | 705 | 10,642 |
+| Food | Restaurants, cafés, bakeries, dessert | 2,764 | 32,511 |
+| Shops | Other retail and personal services | 655 | 9,768 |
 
-Planted signals: one taste vector per user shared across verticals; neighbourhood taste plus local assortment; repeat buying; and short-term intent that carries from one order to the next, in any vertical. Quik use is skewed, so many users are cold in Quik but active in Food.
+Check-ins are in-person visits, not deliveries. They are a public proxy for where people buy, so treat results as evidence about which *kinds* of signal matter, not as a Careem estimate.
 
 ## How the loop works
 
@@ -42,30 +57,35 @@ propose one change ─► score on validation ─► paired bootstrap vs current
 
 | Part | What it does |
 |---|---|
-| Task and split | Users with 2+ Quik orders (2,584). Second-to-last Quik order is validation, last is test. Only history before each order is visible |
-| Metric | NDCG@10 over the Quik catalogue; also NDCG for cold users (≤1 earlier Quik order), Recall@10, coverage |
-| Base models | Popularity, ItemKNN, EASE, RP3beta (a random walk on the user-item graph, i.e. graph-based retrieval) |
-| Signals | `cross`: weight of Food + Shops history in the user vector · `geo`: zone-level Quik popularity · `repeat`: re-order boost · `seq`: dot-product attention over the 5 most recent orders, any vertical |
+| Task and split | Users with 2+ Quik visits (721 after the split). Second-to-last Quik visit is validation, last is test. Only history before each visit is visible |
+| Metric | NDCG@10 over the 705 Quik venues; also NDCG for cold users (≤1 earlier Quik visit), Recall@10, coverage |
+| Base models | Popularity, ItemKNN, EASE, RP3beta (a random walk on the user–venue graph, i.e. graph-based retrieval) |
+| Signals | `cross`: weight of Food + Shops history in the user vector · `geo`: proximity to the user's usual area · `repeat`: revisit boost · `seq`: dot-product attention over the 5 most recent check-ins, any vertical |
 | Proposer | Heuristic: try each base model, then change one knob of the current best. `--llm`: Claude reads the log and proposes the next change with a hypothesis |
 | Verify | A fixed evaluation harness plus a paired bootstrap over users, so small noisy gains are rejected |
 | Memory | Kept configs are git commits; every run, including discards, is in `results.tsv` |
-| Honest final score | Baseline and winner scored **once** on the test orders, which the loop never saw |
+| Honest final score | Baseline and winner scored **once** on the test visits, which the loop never saw |
 
 ## Result (heuristic proposer, seed 0, 40 iterations)
 
 | | NDCG@10 | NDCG@10, cold users | Recall@10 | Quik coverage |
 |---|---|---|---|---|
-| Popularity baseline | 0.1608 | 0.0959 | 0.3042 | 2.0% |
-| RP3beta + cross 0.2, geo 0.4, repeat 1.0, seq 0.2 | 0.3895 | 0.2046 | 0.5077 | 98.2% |
+| Popularity baseline | 0.0740 | 0.1429 | 0.1512 | 1.4% |
+| RP3beta (α 0.9, β 0.5) + cross 0.2, geo 0.6, repeat 2.0 | 0.5579 | 0.3299 | 0.7087 | 100% |
 
-+142% NDCG@10 (95% CI of the delta +0.215 to +0.243), +113% for the 439 cold users. 13 changes kept, 26 discarded. Full trail in [`report.md`](report.md).
+Delta 95% CI +0.449 to +0.520 over 721 users; 118 cold users. 9 changes kept, 30 discarded. Full trail in [`report.md`](report.md).
 
-What the loop found, in order: the graph model beats popularity overall but hurts cold users (validation cold NDCG 0.121 → 0.064). Zone popularity fixes that (0.064 → 0.182) and is the biggest single gain. Repeat boosting helps returning users. Cross-vertical history is the change that moves cold users most (0.183 → 0.196): Food behaviour tells you what a new Quik user will buy. Attention over recent orders adds a little on top.
+What the loop found:
+- The graph model (RP3beta) is the biggest jump, but on its own it barely helps cold users (validation cold NDCG 0.123 → 0.127).
+- Proximity is what fixes cold users (0.127 → 0.216). Where you are tells you which bodega you'll use.
+- Repeat visits matter: 74% of Quik visits are to a venue the user has been to before.
+- Cross-vertical history helps cold users further (0.226 → 0.241). Food and Shops behaviour says which Quik venues a new user will pick.
+- Attention over recent check-ins was tried five times and **rejected every time**. On this data, recency adds noise once location and repeat are in.
 
 ## Limitations and next steps
 
-- The data is simulated, so this shows the loop recovers planted signals. It says nothing about Careem's users. On real data the next step is a user-randomised A/B test on Quik: orders per user as the primary metric, with coverage, latency, and Food cannibalisation as guardrails.
-- The attention signal uses fixed co-occurrence embeddings. A trained sequential transformer (SASRec/BERT4Rec style) is the natural replacement at scale, as are two-tower retrieval for big catalogues and online updates within a session.
+- Proxy data: visits, not deliveries, and one city in 2012. On Careem data the next step is a user-randomised A/B test on Quik: orders per user as the primary metric, with coverage, latency, and Food cannibalisation as guardrails.
+- The attention signal uses fixed co-occurrence embeddings. A trained sequential transformer (SASRec/BERT4Rec style) is the natural replacement at scale, along with two-tower retrieval for big catalogues and online updates within a session.
 - Re-using one validation set over 40 iterations overfits it a little. The single test run measures how much.
 
 Inspired by [autoresearch](https://github.com/uditgoenka/autoresearch) (Udit Goenka) and Karpathy's original autoresearch idea.
