@@ -7,7 +7,7 @@
   "blend": {
     "cross": 0.2,
     "geo": 0.8,
-    "repeat": 0.5,
+    "repeat": 1.0,
     "seq": 0.0
   }
 }

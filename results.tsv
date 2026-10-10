@@ -15,3 +15,6 @@ iter	status	ndcg@10	ndcg_cold	recall@10	coverage	delta	p_improve	config	descript
 13	discard	0.3303	0.1838	0.4497	0.974	-0.0007	0.16	{"blend": {"cross": 0.0, "geo": 1.0, "repeat": 0.5, "seq": 0.0}, "model": "rp3beta", "params": {"alpha": 0.84, "beta": 0.38}}	geo 0.8 -> 1.0
 14	discard	0.3100	0.1824	0.4450	0.986	-0.0210	0.00	{"blend": {"cross": 0.0, "geo": 0.8, "repeat": 0.5, "seq": 0.0}, "model": "rp3beta", "params": {"alpha": 0.84, "beta": 0.63}}	beta 0.38 -> 0.63
 15	keep	0.3374	0.1958	0.4551	0.980	+0.0064	1.00	{"blend": {"cross": 0.2, "geo": 0.8, "repeat": 0.5, "seq": 0.0}, "model": "rp3beta", "params": {"alpha": 0.84, "beta": 0.38}}	cross 0.0 -> 0.2
+16	discard	0.3384	0.2001	0.4567	0.986	+0.0010	0.79	{"blend": {"cross": 0.2, "geo": 0.8, "repeat": 0.5, "seq": 0.2}, "model": "rp3beta", "params": {"alpha": 0.84, "beta": 0.38}}	seq 0.0 -> 0.2
+17	discard	0.3335	0.1907	0.4543	0.984	-0.0039	0.01	{"blend": {"cross": 0.2, "geo": 0.4, "repeat": 0.5, "seq": 0.0}, "model": "rp3beta", "params": {"alpha": 0.84, "beta": 0.38}}	geo 0.8 -> 0.4
+18	keep	0.3393	0.1958	0.4551	0.984	+0.0019	0.99	{"blend": {"cross": 0.2, "geo": 0.8, "repeat": 1.0, "seq": 0.0}, "model": "rp3beta", "params": {"alpha": 0.84, "beta": 0.38}}	repeat 0.5 -> 1.0
