@@ -7,3 +7,5 @@ iter	status	ndcg@10	ndcg_cold	recall@10	coverage	delta	p_improve	config	descript
 5	keep	0.2416	0.1817	0.4435	0.986	+0.0547	1.00	{"blend": {"cross": 0.0, "geo": 0.2, "repeat": 0.0, "seq": 0.0}, "model": "rp3beta", "params": {"alpha": 1.0, "beta": 0.5}}	geo 0.0 -> 0.2
 6	keep	0.2553	0.1825	0.4493	0.984	+0.0137	1.00	{"blend": {"cross": 0.0, "geo": 0.2, "repeat": 0.0, "seq": 0.0}, "model": "rp3beta", "params": {"alpha": 1.0, "beta": 0.38}}	beta 0.5 -> 0.38
 7	keep	0.2782	0.1828	0.4524	0.984	+0.0229	1.00	{"blend": {"cross": 0.0, "geo": 0.2, "repeat": 0.0, "seq": 0.0}, "model": "rp3beta", "params": {"alpha": 0.84, "beta": 0.38}}	alpha 1.0 -> 0.84
+8	discard	0.2376	0.1801	0.4381	0.986	-0.0405	0.00	{"blend": {"cross": 0.0, "geo": 0.2, "repeat": 0.0, "seq": 0.0}, "model": "rp3beta", "params": {"alpha": 0.84, "beta": 0.63}}	beta 0.38 -> 0.63
+9	keep	0.3062	0.1830	0.4493	0.970	+0.0280	1.00	{"blend": {"cross": 0.0, "geo": 0.6, "repeat": 0.0, "seq": 0.0}, "model": "rp3beta", "params": {"alpha": 0.84, "beta": 0.38}}	geo 0.2 -> 0.6
