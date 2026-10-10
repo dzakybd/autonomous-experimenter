@@ -1,0 +1,2 @@
+iter	status	ndcg@10	ndcg_cold	recall@10	coverage	delta	p_improve	config	description
+0	baseline	0.1601	0.1206	0.2991	0.020	+0.0000	1.00	{"blend": {"cross": 0.0, "geo": 0.0, "repeat": 0.0, "seq": 0.0}, "model": "pop", "params": {}}	popularity
