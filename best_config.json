@@ -2,7 +2,7 @@
   "model": "rp3beta",
   "params": {
     "alpha": 0.84,
-    "beta": 0.38
+    "beta": 0.26
   },
   "blend": {
     "cross": 0.2,
