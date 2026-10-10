@@ -1,0 +1,107 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Autonomous Experimenter: cross-vertical personalization</title>
+<script src="https://cdn.plot.ly/plotly-3.1.0.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/marked@18.1.0/lib/marked.umd.js"></script>
+<style>
+  body { font: 15px/1.55 system-ui, -apple-system, sans-serif; max-width: 1100px; margin: 0 auto; padding: 24px; color: #111827; }
+  h1 { font-size: 26px; margin: 0 0 8px; }
+  a { color: #2563eb; }
+  .tabs { display: flex; gap: 4px; border-bottom: 1px solid #e5e7eb; margin: 20px 0; }
+  .tabs button { border: 0; background: none; padding: 10px 16px; font: inherit; cursor: pointer; border-bottom: 2px solid transparent; }
+  .tabs button.on { border-color: #16a34a; color: #16a34a; font-weight: 600; }
+  .pane { display: none; } .pane.on { display: block; }
+  table { border-collapse: collapse; width: 100%; font-size: 13px; margin: 12px 0; }
+  th, td { border: 1px solid #e5e7eb; padding: 6px 8px; text-align: left; vertical-align: top; }
+  th { background: #f9fafb; }
+  code { font-size: 12px; background: #f3f4f6; padding: 1px 4px; border-radius: 4px; word-break: break-all; }
+  tr.keep td:nth-child(2) { color: #16a34a; font-weight: 600; } tr.discard { color: #6b7280; }
+  .hit { background: #fef9c3; font-weight: 600; }
+  select { font: inherit; padding: 6px 10px; }
+  .note { color: #4b5563; font-size: 14px; }
+</style>
+</head>
+<body>
+<h1>Autonomous Experimenter: cross-vertical personalization</h1>
+<p>An autoresearch-style loop (<b>modify, verify, keep or discard</b>) that tunes a recommender on its own. Task: predict each user's next
+<b>Quik-like</b> visit (bodega, deli, pharmacy, convenience store) from their <b>Food, Quik, and Shops</b> history, using the public
+<a href="https://huggingface.co/datasets/yyh11/FourSquare_checkin">Foursquare NYC check-ins</a> (1,080 users, 4,124 venues). Each iteration changes one thing;
+a paired bootstrap keeps it only if the gain is not noise; the winner is scored once on held-out visits.
+Code and live runner: <a href="https://github.com/dzakybd/autonomous-experimenter">GitHub</a>.</p>
+<p class="note">This page shows a saved run (heuristic proposer, 40 iterations). To run the loop yourself: <code>uv run experimenter.py</code> or <code>uv run --extra app app.py</code> for the Gradio app.</p>
+
+<div class="tabs"><button class="on" data-pane="loop">The loop</button><button data-pane="explore">Explore a user</button></div>
+
+<div id="loop" class="pane on">
+  <div id="chart"></div>
+  <div id="report"></div>
+  <h2>results.tsv</h2>
+  <table id="log"></table>
+</div>
+
+<div id="explore" class="pane">
+  <label>User with a held-out test visit: <select id="user"></select></label>
+  <p id="info"></p>
+  <div id="map"></div>
+  <table id="recs"></table>
+</div>
+
+<script>
+const COLORS = { quik: "#16a34a", food: "#f97316", shops: "#6366f1" };
+document.querySelectorAll(".tabs button").forEach(b => b.onclick = () => {
+  document.querySelectorAll(".tabs button, .pane").forEach(e => e.classList.remove("on"));
+  b.classList.add("on"); document.getElementById(b.dataset.pane).classList.add("on");
+  window.dispatchEvent(new Event("resize"));
+});
+const esc = s => String(s).replace(/[&<>]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;" }[c]));
+
+fetch("data.json").then(r => r.json()).then(data => {
+  // The loop: chart, report, log
+  const log = data.log;
+  let best = -1;
+  const bestLine = log.map(r => (best = r.status !== "discard" ? Math.max(best, r["ndcg@10"]) : best));
+  const pts = s => log.filter(r => r.status === s);
+  const dots = (s, color) => ({ x: pts(s).map(r => r.iter), y: pts(s).map(r => r["ndcg@10"]), text: pts(s).map(r => r.description),
+                               mode: "markers", type: "scatter", name: s, marker: { color, size: 9 } });
+  Plotly.newPlot("chart", [dots("keep", "#16a34a"), dots("discard", "#9ca3af"), dots("baseline", "#111827"),
+    { x: log.map(r => r.iter), y: bestLine, mode: "lines", line: { shape: "hv", color: "#16a34a" }, name: "best so far" }],
+    { height: 380, margin: { l: 50, r: 10, t: 10, b: 40 }, xaxis: { title: { text: "iteration" } },
+      yaxis: { title: { text: "validation NDCG@10" } }, legend: { orientation: "h" } }, { responsive: true });
+  document.getElementById("report").innerHTML = marked.parse(data.report);
+  document.getElementById("log").innerHTML =
+    "<tr><th>iter</th><th>status</th><th>NDCG@10</th><th>cold NDCG@10</th><th>delta</th><th>P(gain&gt;0)</th><th>change</th></tr>" +
+    log.map(r => `<tr class="${r.status}"><td>${r.iter}</td><td>${r.status}</td><td>${r["ndcg@10"].toFixed(4)}</td>
+      <td>${r.ndcg_cold.toFixed(4)}</td><td>${r.delta.toFixed(4)}</td><td>${r.p_improve.toFixed(2)}</td><td>${esc(r.description)}</td></tr>`).join("");
+
+  // Explore a user: start with one the winner gets right and popularity misses
+  const users = data.users;
+  const sel = document.getElementById("user");
+  sel.innerHTML = users.map((u, i) => `<option value="${i}">${u.user}</option>`).join("");
+  const isHit = (u, m) => u[m].some(v => v.id === u.truth.id);
+  sel.value = Math.max(0, users.findIndex(u => isHit(u, "winner") && !isHit(u, "popularity")));
+  sel.onchange = () => show(users[sel.value]);
+  show(users[sel.value]);
+
+  function show(u) {
+    const c = u.counts;
+    document.getElementById("info").innerHTML = `<b>User ${u.user}</b>: ${c.food || 0} Food, ${c.quik || 0} Quik, ${c.shops || 0} Shops check-ins
+      before the target. Actual next Quik visit: <b>${esc(u.truth.cat)}</b> #${u.truth.id} (${u.truth.repeat ? "repeat" : "new venue"}).`;
+    const trace = (vs, name, color, size, opacity = 1) => ({ type: "scattermap", mode: "markers", name, lat: vs.map(v => v.lat),
+      lon: vs.map(v => v.lng), text: vs.map(v => `#${v.id} ${v.cat}`), marker: { color, size, opacity } });
+    const traces = ["food", "quik", "shops"].map(v => trace(u.seen.filter(s => s.v === v), `visited: ${v}`, COLORS[v], 8, 0.5));
+    traces.push(trace(u.popularity, "top-10: popularity", "#9ca3af", 13), trace(u.winner, "top-10: winner", "#dc2626", 13),
+                trace([u.truth], "actual next Quik visit", "#facc15", 20));
+    Plotly.react("map", traces, { height: 480, margin: { l: 0, r: 0, t: 0, b: 0 }, legend: { orientation: "h" },
+      map: { style: "open-street-map", center: { lat: u.truth.lat, lon: u.truth.lng }, zoom: 12 } }, { responsive: true });
+    const rows = m => u[m].map((v, i) => `<tr class="${v.id === u.truth.id ? "hit" : ""}"><td>${m}</td><td>${i + 1}</td><td>#${v.id}</td>
+      <td>${esc(v.cat)}</td><td>${v.near}</td><td>${v.id === u.truth.id ? "HIT" : ""}</td></tr>`).join("");
+    document.getElementById("recs").innerHTML =
+      "<tr><th>model</th><th>rank</th><th>venue</th><th>category</th><th>proximity (0-1)</th><th>hit</th></tr>" + rows("popularity") + rows("winner");
+  }
+});
+</script>
+</body>
+</html>

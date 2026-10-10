@@ -1,21 +1,8 @@
----
-title: Autonomous Experimenter
-emoji: 🧪
-colorFrom: green
-colorTo: indigo
-sdk: gradio
-sdk_version: 6.30.0
-python_version: "3.12"
-app_file: app.py
-pinned: false
-short_description: Autoresearch loop for cross-vertical recommendations
----
-
 # Autonomous Experimenter: cross-vertical personalization
 
 Careem AI Challenge, option 2: an AI that runs experiments, compares models, and summarizes the results without a human in the loop.
 
-**Live demo:** https://huggingface.co/spaces/dzakybd/autonomous-experimenter · **Code:** https://github.com/dzakybd/autonomous-experimenter
+**Live demo (saved run, interactive map):** https://huggingface.co/spaces/dzakybd/autonomous-experimenter · **Code:** https://github.com/dzakybd/autonomous-experimenter
 
 The problem is the one in the Personalization role: recommend a user's next **Quik**-style purchase using what they do in **Food, Quik, and Shops**, with location, including users who have barely used Quik.
 
@@ -28,7 +15,8 @@ An autonomous experimenter for cross-vertical personalization, built on the auto
 ```bash
 uv run experimenter.py                     # heuristic proposer, no API key, a few seconds
 uv run --extra llm experimenter.py --llm   # Claude proposes each change and writes the conclusion
-uv run --extra app app.py                  # the Gradio demo
+uv run --extra app app.py                  # Gradio app: run the loop live in your browser
+uv run export_static.py                    # rebuild static/ (the Hugging Face dashboard) from the latest run
 ```
 
 Outputs: `results.tsv` (every experiment), `best_config.json`, `report.md`, and one git commit per kept change (`git log --oneline`). The data downloads on first run.
