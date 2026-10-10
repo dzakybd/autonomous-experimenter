@@ -23,3 +23,11 @@ iter	status	ndcg@10	ndcg_cold	recall@10	coverage	delta	p_improve	config	descript
 21	discard	0.5359	0.2382	0.6852	1.000	+0.0009	0.72	{"blend": {"cross": 0.2, "geo": 0.6, "repeat": 1.0, "seq": 0.0}, "model": "rp3beta", "params": {"alpha": 1.0, "beta": 0.38}}	beta 0.5 -> 0.38
 22	discard	0.5334	0.2377	0.6838	1.000	-0.0016	0.08	{"blend": {"cross": 0.2, "geo": 0.6, "repeat": 1.0, "seq": 0.0}, "model": "rp3beta", "params": {"alpha": 1.13, "beta": 0.5}}	alpha 1.0 -> 1.13
 23	keep	0.5370	0.2404	0.6865	1.000	+0.0020	0.99	{"blend": {"cross": 0.2, "geo": 0.6, "repeat": 1.0, "seq": 0.0}, "model": "rp3beta", "params": {"alpha": 0.9, "beta": 0.5}}	alpha 1.0 -> 0.9
+24	discard	0.5298	0.2256	0.6741	1.000	-0.0072	0.06	{"blend": {"cross": 0.0, "geo": 0.6, "repeat": 1.0, "seq": 0.0}, "model": "rp3beta", "params": {"alpha": 0.9, "beta": 0.5}}	cross 0.2 -> 0.0
+25	discard	0.5364	0.2391	0.6879	1.000	-0.0006	0.39	{"blend": {"cross": 0.2, "geo": 0.6, "repeat": 1.0, "seq": 0.0}, "model": "rp3beta", "params": {"alpha": 0.74, "beta": 0.5}}	alpha 0.9 -> 0.74
+26	discard	0.5341	0.2393	0.6838	1.000	-0.0029	0.00	{"blend": {"cross": 0.2, "geo": 0.6, "repeat": 1.0, "seq": 0.0}, "model": "rp3beta", "params": {"alpha": 1.03, "beta": 0.5}}	alpha 0.9 -> 1.03
+27	discard	0.5344	0.2420	0.6824	1.000	-0.0026	0.10	{"blend": {"cross": 0.2, "geo": 0.8, "repeat": 1.0, "seq": 0.0}, "model": "rp3beta", "params": {"alpha": 0.9, "beta": 0.5}}	geo 0.6 -> 0.8
+28	discard	0.5294	0.2342	0.6796	1.000	-0.0076	0.00	{"blend": {"cross": 0.2, "geo": 0.6, "repeat": 1.0, "seq": 0.0}, "model": "rp3beta", "params": {"alpha": 0.9, "beta": 0.6}}	beta 0.5 -> 0.6
+29	discard	0.5300	0.2404	0.6865	1.000	-0.0069	0.01	{"blend": {"cross": 0.2, "geo": 0.6, "repeat": 0.5, "seq": 0.0}, "model": "rp3beta", "params": {"alpha": 0.9, "beta": 0.5}}	repeat 1.0 -> 0.5
+30	discard	0.5322	0.2320	0.6865	1.000	-0.0047	0.01	{"blend": {"cross": 0.6, "geo": 0.6, "repeat": 1.0, "seq": 0.0}, "model": "rp3beta", "params": {"alpha": 0.9, "beta": 0.5}}	cross 0.2 -> 0.6
+31	keep	0.5404	0.2404	0.6865	1.000	+0.0034	0.94	{"blend": {"cross": 0.2, "geo": 0.6, "repeat": 2.0, "seq": 0.0}, "model": "rp3beta", "params": {"alpha": 0.9, "beta": 0.5}}	repeat 1.0 -> 2.0
