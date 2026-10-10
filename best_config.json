@@ -6,7 +6,7 @@
   },
   "blend": {
     "cross": 0.2,
-    "geo": 0.8,
+    "geo": 0.4,
     "repeat": 1.0,
     "seq": 0.2
   }
