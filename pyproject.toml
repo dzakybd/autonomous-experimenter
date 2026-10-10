@@ -1,9 +1,10 @@
 [project]
 name = "autonomous-experimenter"
 version = "0.1.0"
-description = "Autoresearch-style loop that runs, compares, and summarizes recommender experiments on MovieLens-100K"
+description = "Autoresearch-style loop that runs, compares, and summarizes cross-vertical recommender experiments"
 requires-python = ">=3.11"
 dependencies = ["numpy", "pandas", "scipy"]
 
 [project.optional-dependencies]
 llm = ["anthropic", "pydantic"]
+app = ["gradio", "plotly"]
