@@ -5,7 +5,7 @@
     "beta": 0.38
   },
   "blend": {
-    "cross": 0.0,
+    "cross": 0.2,
     "geo": 0.8,
     "repeat": 0.5,
     "seq": 0.0
