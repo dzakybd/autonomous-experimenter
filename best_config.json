@@ -1,6 +1,9 @@
 {
-  "model": "pop",
-  "params": {},
+  "model": "rp3beta",
+  "params": {
+    "alpha": 1.0,
+    "beta": 0.5
+  },
   "blend": {
     "cross": 0.0,
     "geo": 0.0,

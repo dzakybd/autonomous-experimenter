@@ -1,2 +1,5 @@
 iter	status	ndcg@10	ndcg_cold	recall@10	coverage	delta	p_improve	config	description
 0	baseline	0.1601	0.1206	0.2991	0.020	+0.0000	1.00	{"blend": {"cross": 0.0, "geo": 0.0, "repeat": 0.0, "seq": 0.0}, "model": "pop", "params": {}}	popularity
+1	discard	0.1134	0.0303	0.2221	1.000	-0.0467	0.00	{"blend": {"cross": 0.0, "geo": 0.0, "repeat": 0.0, "seq": 0.0}, "model": "itemknn", "params": {"k": 100, "shrink": 10.0}}	try base model itemknn at defaults
+2	discard	0.1576	0.0463	0.2864	1.000	-0.0025	0.34	{"blend": {"cross": 0.0, "geo": 0.0, "repeat": 0.0, "seq": 0.0}, "model": "ease", "params": {"lam": 250.0}}	try base model ease at defaults
+3	keep	0.1869	0.0643	0.3491	1.000	+0.0269	1.00	{"blend": {"cross": 0.0, "geo": 0.0, "repeat": 0.0, "seq": 0.0}, "model": "rp3beta", "params": {"alpha": 1.0, "beta": 0.5}}	try base model rp3beta at defaults
