@@ -1,0 +1,375 @@
+"""Autonomous Experimenter: an autoresearch-style loop for super-app personalization.
+
+Task: recommend each user's next Quik (quick-commerce) order, using their history in
+Food, Quik, and Shops (see simulate.py). Many users barely use Quik, so the interesting
+question is which signals transfer: other verticals, the user's zone, repeat buying,
+or the intent behind their most recent orders.
+
+Loop (after github.com/uditgoenka/autoresearch): propose ONE change -> run it ->
+verify mechanically (validation NDCG@10 + paired bootstrap) -> keep (git commit)
+or discard -> log to results.tsv -> repeat. The log is the agent's memory: the
+proposer reads it to avoid repeats and to climb from the current best.
+
+Each user's second-to-last Quik order is validation; the last is test. The loop only
+sees validation. At the end the baseline and the winner are scored once on test.
+
+Usage:
+    uv run experimenter.py --iters 40          # heuristic proposer, no API key
+    uv run --extra llm experimenter.py --llm   # Claude proposes and narrates
+"""
+
+import argparse
+import json
+import subprocess
+from pathlib import Path
+
+import numpy as np
+import pandas as pd
+import scipy.sparse as sp
+
+ROOT = Path(__file__).parent
+DATA = ROOT / "data"
+RESULTS = ROOT / "results.tsv"
+BEST = ROOT / "best_config.json"
+REPORT = ROOT / "report.md"
+K = 10
+KEEP_PROB = 0.90  # keep only if P(delta NDCG > 0) >= 0.90 under paired bootstrap
+
+# Base retrieval models: param -> (low, high, log_scale, is_int)
+SPACE = {
+    "pop": {},
+    "itemknn": {"k": (10, 400, True, True), "shrink": (0, 200, False, False)},
+    "ease": {"lam": (10, 5000, True, False)},
+    "rp3beta": {"alpha": (0.2, 1.5, False, False), "beta": (0.0, 1.0, False, False)},  # graph random walk
+}
+DEFAULTS = {"pop": {}, "itemknn": {"k": 100, "shrink": 10.0}, "ease": {"lam": 250.0}, "rp3beta": {"alpha": 1.0, "beta": 0.5}}
+# Signals blended on top of the base model: name -> (high, step). All start at 0 (off).
+BLEND = {
+    "cross": (1.0, 0.2),   # weight of Food + Shops history in the user vector (cross-vertical transfer)
+    "geo": (1.0, 0.2),     # zone-level Quik popularity (local assortment and neighbourhood taste)
+    "repeat": (2.0, 0.5),  # boost Quik items the user bought before
+    "seq": (1.0, 0.2),     # attention over the user's 5 most recent orders, any vertical
+}
+
+
+# ---------------------------------------------------------------- data
+def load():
+    if not (DATA / "orders.csv").exists():
+        import simulate
+        simulate.main()
+    users = pd.read_csv(DATA / "users.csv")
+    items = pd.read_csv(DATA / "items.csv")
+    orders = pd.read_csv(DATA / "orders.csv").sort_values(["user", "hour", "item"])
+    return users, items, orders
+
+
+def targets(orders):
+    """Per user with 2+ Quik orders: second-to-last Quik order -> val, last -> test."""
+    q = orders[orders["vertical"] == "quik"].copy()
+    q["n_before"] = q.groupby("user").cumcount()
+    q["pos"] = q.groupby("user").cumcount(ascending=False)
+    q = q[q["user"].isin(q.loc[q["pos"] == 1, "user"])]
+    return q[q["pos"] == 1], q[q["pos"] == 0]
+
+
+class Context:
+    """Everything known before each target user's cutoff (other users: their full history)."""
+
+    def __init__(self, users, items, orders, target):
+        cut = orders["user"].map(target.set_index("user")["hour"]).fillna(np.inf)
+        hist = orders[orders["hour"] < cut]
+        n_users, n_items = len(users), len(items)
+        self.X = sp.csr_matrix((np.ones(len(hist)), (hist["user"], hist["item"])), shape=(n_users, n_items))
+        self.Xb = (self.X > 0).astype(float)
+        self.Q = np.flatnonzero(items["vertical"].to_numpy() == "quik")
+        self.is_quik = items["vertical"].to_numpy() == "quik"
+        self.U = target["user"].to_numpy()
+        self.truth = np.searchsorted(self.Q, target["item"].to_numpy())
+        self.cold = target["n_before"].to_numpy() <= 1  # at most one earlier Quik order
+        zone = pd.factorize(users["zone"])[0]
+        self.zone_u = zone[self.U]
+        self.Z = sp.csr_matrix((np.ones(n_users), (np.arange(n_users), zone)))
+        recent = hist.groupby("user")["item"].apply(lambda s: s.to_numpy()[-5:])
+        self.recent = [recent.get(u, np.array([], int)) for u in self.U]
+
+
+# ---------------------------------------------------------------- models
+def rownorm(S):
+    lo, hi = S.min(1, keepdims=True), S.max(1, keepdims=True)
+    return np.where(hi > lo, (S - lo) / np.where(hi > lo, hi - lo, 1), 0.0)
+
+
+def cosine(Xw, shrink=0.0):
+    G = (Xw.T @ Xw).toarray()
+    n = np.sqrt(np.diag(G))
+    sim = G / (np.outer(n, n) + shrink + 1e-9)
+    np.fill_diagonal(sim, 0)
+    return sim
+
+
+def score(cfg, c: Context):
+    m, p, b = cfg["model"], cfg["params"], cfg["blend"]
+    Xw = c.Xb @ sp.diags(np.where(c.is_quik, 1.0, b["cross"]))
+    if m == "pop":
+        S = np.tile(np.asarray(c.Xb[:, c.Q].sum(0)), (len(c.U), 1))
+    elif m == "itemknn":
+        sim = cosine(Xw, p["shrink"])[:, c.Q]
+        sim[sim < np.partition(sim, -p["k"], axis=0)[-p["k"]]] = 0  # top-k neighbours per Quik item
+        S = Xw[c.U] @ sim
+    elif m == "ease":  # Steck 2019, closed form
+        P = np.linalg.inv((Xw.T @ Xw).toarray() + p["lam"] * np.eye(Xw.shape[1]))
+        B = -P / np.diag(P)
+        np.fill_diagonal(B, 0)
+        S = Xw[c.U] @ B[:, c.Q]
+    elif m == "rp3beta":  # 3-step walk user -> item -> user -> item, popularity-penalised
+        def walk(M):
+            d = np.asarray(M.sum(1)).ravel()
+            return (sp.diags(1 / np.where(d > 0, d, 1)) @ M).power(p["alpha"])
+        Pui, Piu = walk(Xw), walk(Xw.T.tocsr())
+        W = (Piu @ Pui[:, c.Q]).toarray() / (np.asarray(c.Xb[:, c.Q].sum(0)) + 1) ** p["beta"]
+        S = Pui[c.U] @ W
+    else:
+        raise ValueError(m)
+    S = rownorm(np.asarray(S, dtype=float))
+
+    if b["repeat"]:
+        S += b["repeat"] * rownorm(np.log1p(c.X[c.U][:, c.Q].toarray()))
+    if b["geo"]:
+        S += b["geo"] * rownorm(np.asarray((c.Z.T @ c.Xb[:, c.Q]).todense()))[c.zone_u]
+    if b["seq"]:
+        sim = cosine(Xw)
+        A = np.zeros_like(S)
+        for r, h in enumerate(c.recent):
+            if len(h):
+                a = np.exp(sim[h[-1], h] / 0.1)  # query = latest order, keys = recent orders
+                A[r] = (a / a.sum()) @ sim[np.ix_(h, c.Q)]
+        S += b["seq"] * rownorm(A)
+    return S
+
+
+# ---------------------------------------------------------------- evaluation
+def evaluate(cfg, c: Context):
+    S = score(cfg, c) + np.random.default_rng(0).uniform(0, 1e-9, (len(c.U), len(c.Q)))  # random tie-break
+    rank = (S > S[np.arange(len(c.U)), c.truth][:, None]).sum(1)
+    ndcg = np.where(rank < K, 1 / np.log2(rank + 2), 0.0)
+    top = np.argpartition(-S, K, axis=1)[:, :K]
+    return {
+        "ndcg": float(ndcg.mean()),
+        "ndcg_cold": float(ndcg[c.cold].mean()),
+        "recall": float((rank < K).mean()),
+        "coverage": len(np.unique(top)) / len(c.Q),
+        "per_user": ndcg,
+    }
+
+
+def p_improve(new, old, n=2000, seed=0):
+    """Paired bootstrap over users: P(mean NDCG delta > 0) and a 95% CI of the delta."""
+    d = new - old
+    means = d[np.random.default_rng(seed).integers(0, len(d), (n, len(d)))].mean(1)
+    return float((means > 0).mean()), np.percentile(means, [2.5, 97.5])
+
+
+# ---------------------------------------------------------------- proposers
+def key(cfg):
+    return json.dumps(cfg, sort_keys=True)
+
+
+def make(model, params=None, blend=None):
+    cfg = {"model": model, "params": dict(DEFAULTS[model], **(params or {})), "blend": dict.fromkeys(BLEND, 0.0)}
+    cfg["blend"].update(blend or {})
+    for name, (lo, hi, _, is_int) in SPACE[model].items():
+        v = min(max(cfg["params"][name], lo), hi)
+        cfg["params"][name] = int(round(v)) if is_int else round(float(v), 2)
+    cfg["params"] = {n: cfg["params"][n] for n in SPACE[model]}
+    cfg["blend"] = {n: round(min(max(float(cfg["blend"][n]), 0.0), hi), 2) for n, (hi, _) in BLEND.items()}
+    return cfg
+
+
+def propose_heuristic(history, best, rng):
+    """Try each base model once, then change one knob of the current best."""
+    tried = {h["key"] for h in history}
+    for m in SPACE:
+        cfg = make(m)
+        if key(cfg) not in tried:
+            return cfg, f"try base model {m} at defaults"
+    for _ in range(300):
+        params, blend = dict(best["params"]), dict(best["blend"])
+        knobs = list(SPACE[best["model"]]) + list(BLEND)
+        knob = knobs[rng.integers(len(knobs))]
+        if knob in BLEND:
+            old, step = blend[knob], BLEND[knob][1]
+            blend[knob] = old + rng.choice([-2, -1, 1, 2]) * step if old else step
+        else:
+            lo, hi, log, _ = SPACE[best["model"]][knob]
+            old, f = params[knob], rng.choice([0.5, 0.7, 1.4, 2.0])
+            params[knob] = old * f if log else old + (f - 1) * (hi - lo) / 4
+        cfg = make(best["model"], params, blend)
+        new = cfg["blend"][knob] if knob in BLEND else cfg["params"][knob]
+        if key(cfg) not in tried:
+            return cfg, f"{knob} {old} -> {new}"
+    return None, "every one-step change around the best has been tried (local optimum)"
+
+
+def propose_llm(history, best):
+    import anthropic
+    from typing import Literal, Optional
+    from pydantic import BaseModel
+
+    class Proposal(BaseModel):
+        model: Literal["pop", "itemknn", "ease", "rp3beta"]
+        k: Optional[int] = None
+        shrink: Optional[float] = None
+        lam: Optional[float] = None
+        alpha: Optional[float] = None
+        beta: Optional[float] = None
+        cross: float
+        geo: float
+        repeat: float
+        seq: float
+        hypothesis: str
+
+    log = "\n".join(f"{h['iter']}\t{h['status']}\t{h['ndcg']:.4f}\t{h['ndcg_cold']:.4f}\t{h['key']}" for h in history)
+    prompt = (
+        "You are tuning a next-order recommender for the Quik (quick-commerce) vertical of a super app. "
+        "Users also order Food and Shops. Metric: NDCG@10 on each user's held-out validation Quik order.\n"
+        f"Base models and params (low, high, log, int): {json.dumps(SPACE)}\n"
+        f"Blend weights (max, step): {json.dumps(BLEND)} -- cross = weight of Food+Shops history, geo = zone "
+        "popularity, repeat = re-order boost, seq = attention over the 5 most recent orders.\n"
+        f"Current best: {key(best)}\nHistory (iter, status, ndcg, ndcg_cold, config):\n{log}\n\n"
+        "Propose exactly ONE new config that differs from the best by a single atomic change and is not in "
+        "the history. Use the history to decide what is likely to help. Give a one-line hypothesis."
+    )
+    resp = anthropic.Anthropic().messages.parse(
+        model="claude-opus-5-5",
+        max_tokens=16000,
+        output_config={"effort": "low"},
+        messages=[{"role": "user", "content": prompt}],
+        output_format=Proposal,
+    )
+    p = resp.parsed_output
+    cfg = make(p.model, {n: getattr(p, n) for n in SPACE[p.model] if getattr(p, n) is not None},
+               {n: getattr(p, n) for n in BLEND})
+    if key(cfg) in {h["key"] for h in history}:
+        return None, "LLM proposed a duplicate"
+    return cfg, p.hypothesis
+
+
+def narrate_llm(text: str) -> str:
+    import anthropic
+
+    resp = anthropic.Anthropic().messages.create(
+        model="claude-opus-5-5",
+        max_tokens=16000,
+        output_config={"effort": "low"},
+        messages=[{"role": "user", "content": (
+            "Write a 120-word, data-driven conclusion for a personalization lead from these Quik recommender "
+            "experiments. State the winner, the test lift with its CI, which signals drove it, the effect on "
+            f"cold-start users, one risk, and a concrete online A/B test as next step. Use only numbers given.\n\n{text}")}],
+    )
+    return next(b.text for b in resp.content if b.type == "text")
+
+
+# ---------------------------------------------------------------- git memory
+def git_commit(msg):
+    if (ROOT / ".git").exists():
+        subprocess.run(["git", "add", BEST.name, RESULTS.name], cwd=ROOT, check=True)
+        subprocess.run(["git", "commit", "-q", "-m", msg], cwd=ROOT, check=True)
+
+
+# ---------------------------------------------------------------- main loop
+def main():
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--iters", type=int, default=40)
+    ap.add_argument("--llm", action="store_true", help="use Claude to propose configs and narrate results")
+    ap.add_argument("--seed", type=int, default=0)
+    args = ap.parse_args()
+    rng = np.random.default_rng(args.seed)
+
+    users, items, orders = load()
+    val, test = targets(orders)
+    cv = Context(users, items, orders, val)
+
+    history, best, best_res = [], None, None
+    RESULTS.write_text("iter\tstatus\tndcg@10\tndcg_cold\trecall@10\tcoverage\tdelta\tp_improve\tconfig\tdescription\n")
+    for it in range(args.iters):
+        if best is None:
+            cfg, desc = make("pop"), "popularity"
+        elif args.llm:
+            cfg, desc = propose_llm(history, best)
+        else:
+            cfg, desc = propose_heuristic(history, best, rng)
+        if cfg is None:
+            print(f"[{it}] stop: {desc}")
+            break
+
+        res = evaluate(cfg, cv)
+        if best is None:
+            status, delta, prob = "baseline", 0.0, 1.0
+        else:
+            delta = res["ndcg"] - best_res["ndcg"]
+            prob, _ = p_improve(res["per_user"], best_res["per_user"])
+            status = "keep" if delta > 0 and prob >= KEEP_PROB else "discard"
+
+        history.append({"iter": it, "status": status, "ndcg": res["ndcg"], "ndcg_cold": res["ndcg_cold"], "key": key(cfg)})
+        with RESULTS.open("a") as f:
+            f.write(f"{it}\t{status}\t{res['ndcg']:.4f}\t{res['ndcg_cold']:.4f}\t{res['recall']:.4f}\t"
+                    f"{res['coverage']:.3f}\t{delta:+.4f}\t{prob:.2f}\t{key(cfg)}\t{desc}\n")
+        print(f"[{it:02d}] {status:8s} ndcg={res['ndcg']:.4f} cold={res['ndcg_cold']:.4f} ({delta:+.4f}, p={prob:.2f})  {desc}")
+
+        if status in ("baseline", "keep"):
+            best, best_res = cfg, res
+            BEST.write_text(json.dumps(cfg, indent=2) + "\n")
+            git_commit(f"{status}: {desc} (val ndcg@10 {res['ndcg']:.4f})")
+
+    # Final, one-shot check on each user's last Quik order, which the loop never scored.
+    ct = Context(users, items, orders, test)
+    base_cfg = json.loads(history[0]["key"])
+    base_t, best_t = evaluate(base_cfg, ct), evaluate(best, ct)
+    prob, ci = p_improve(best_t["per_user"], base_t["per_user"])
+    write_report(base_cfg, best, base_t, best_t, prob, ci, ct, args.llm)
+    print(f"\ntest ndcg@10: baseline {base_t['ndcg']:.4f} -> best {best_t['ndcg']:.4f} "
+          f"(95% CI of delta {ci[0]:+.4f}..{ci[1]:+.4f}). Report: {REPORT.name}")
+
+
+def write_report(base_cfg, best, base_t, best_t, prob, ci, ct, use_llm):
+    log = pd.read_csv(RESULTS, sep="\t").rename(columns={"ndcg@10": "ndcg"})
+    kept = log[log["status"].isin(["baseline", "keep"])]
+    lift = best_t["ndcg"] / base_t["ndcg"] - 1
+    cold_lift = best_t["ndcg_cold"] / base_t["ndcg_cold"] - 1
+    table = (
+        "| | config | NDCG@10 | NDCG@10, cold users | Recall@10 | Quik catalogue coverage |\n|---|---|---|---|---|---|\n"
+        f"| baseline | `{key(base_cfg)}` | {base_t['ndcg']:.4f} | {base_t['ndcg_cold']:.4f} | {base_t['recall']:.4f} | {base_t['coverage']:.1%} |\n"
+        f"| winner | `{key(best)}` | {best_t['ndcg']:.4f} | {best_t['ndcg_cold']:.4f} | {best_t['recall']:.4f} | {best_t['coverage']:.1%} |\n\n"
+        f"Lift: {lift:+.1%} NDCG@10 overall ({cold_lift:+.1%} for the {ct.cold.sum()} cold users with at most one "
+        f"earlier Quik order). Delta 95% CI {ci[0]:+.4f}..{ci[1]:+.4f}; P(delta>0) = {prob:.3f} "
+        f"(paired bootstrap over {len(ct.U)} users).\n"
+        f"Experiments: {len(log)} run, {len(kept) - 1} kept, {(log['status'] == 'discard').sum()} discarded.\n"
+    )
+    steps = "\n".join(f"- iter {r.iter}: {r.description} -> val NDCG@10 {r.ndcg:.4f} (cold {r.ndcg_cold:.4f})"
+                      for r in kept.itertuples())
+    model = log["config"].map(lambda c: json.loads(c)["model"])
+    fam = "\n".join(f"| {m} | {v:.4f} |" for m, v in log.groupby(model)["ndcg"].max().sort_values(ascending=False).items())
+    on = [n for n, v in best["blend"].items() if v]
+    narrative = narrate_llm(table + steps) if use_llm else (
+        f"The loop replaced the popularity baseline with **{best['model']}** plus the "
+        f"{', '.join(on) if on else 'no extra'} signal(s), lifting held-out NDCG@10 by {lift:+.1%} "
+        f"({base_t['ndcg']:.4f} -> {best_t['ndcg']:.4f}); the 95% CI of the delta "
+        f"{'excludes zero' if ci[0] > 0 else 'includes zero, so the lift is not conclusive'}. Cold users changed "
+        f"by {cold_lift:+.1%}. This is simulated data, so the result shows the loop finds planted signals, not "
+        "what Careem's users do. Next step on real data: a user-randomised A/B test on Quik with orders per "
+        "user as the primary metric, and coverage, latency, and Food cannibalisation as guardrails."
+    )
+    REPORT.write_text(
+        "# Autonomous Experimenter report\n\n"
+        "Next Quik order for each user with 2+ Quik orders, using their Food, Quik, and Shops history "
+        "(simulated super-app data, see `simulate.py`). Loop decisions used each user's second-to-last Quik "
+        "order; the numbers below are one final run on the last order, which the loop never saw.\n\n"
+        f"## Result\n\n{table}\n## Conclusion\n\n{narrative}\n\n"
+        f"## Path of kept changes\n\n{steps}\n\n"
+        f"## Best validation NDCG@10 per base model\n\n| model | NDCG@10 |\n|---|---|\n{fam}\n\n"
+        "Full log: `results.tsv`. Kept changes are git commits (`git log --oneline`).\n"
+    )
+
+
+if __name__ == "__main__":
+    main()
