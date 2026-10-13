@@ -1,6 +1,9 @@
 {
-  "model": "pop",
-  "params": {},
+  "model": "itemknn",
+  "params": {
+    "k": 100,
+    "shrink": 10.0
+  },
   "blend": {
     "cross": 0.0,
     "geo": 0.0,
