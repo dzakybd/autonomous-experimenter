@@ -1,8 +1,8 @@
 {
-  "model": "itemknn",
+  "model": "rp3beta",
   "params": {
-    "k": 100,
-    "shrink": 10.0
+    "alpha": 1.0,
+    "beta": 0.5
   },
   "blend": {
     "cross": 0.0,
