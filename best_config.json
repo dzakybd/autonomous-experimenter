@@ -1,7 +1,7 @@
 {
   "model": "rp3beta",
   "params": {
-    "alpha": 0.8,
+    "alpha": 0.7,
     "beta": 0.5
   },
   "blend": {
