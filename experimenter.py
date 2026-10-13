@@ -286,8 +286,12 @@ def narrate_llm(text: str) -> str:
 
 
 # ---------------------------------------------------------------- the loop
-def run(iters=40, use_llm=False, seed=0, on_keep=None):
-    """Run the loop. Yields one dict per experiment, then a final dict with the test results."""
+def run(iters=40, use_llm=False, seed=0, on_keep=None, start=None):
+    """Run the loop. Yields one dict per experiment, then a final dict with the test results.
+
+    start: a config to resume from (e.g. a previous run's best). It is proposed right after the
+    popularity baseline and goes through the same keep rule; the baseline stays popularity.
+    """
     rng = np.random.default_rng(seed)
     items, orders = prepare.load()
     val, test = targets(orders)
@@ -298,6 +302,8 @@ def run(iters=40, use_llm=False, seed=0, on_keep=None):
     for it in range(iters):
         if best is None:
             cfg, desc = make("pop"), "popularity"
+        elif start is not None and it == 1:
+            cfg, desc = make(start["model"], start["params"], start["blend"]), "resume from a previous best"
         elif use_llm:
             cfg, desc = propose_llm(history, best)
         else:
@@ -348,8 +354,10 @@ def main():
     ap.add_argument("--iters", type=int, default=40)
     ap.add_argument("--llm", action="store_true", help="use Claude to propose configs and narrate results")
     ap.add_argument("--seed", type=int, default=0)
+    ap.add_argument("--resume", type=Path, help="config JSON to continue from, e.g. a previous best_config.json")
     args = ap.parse_args()
-    for r in run(args.iters, args.llm, args.seed, on_keep=git_commit):
+    start = json.loads(args.resume.read_text()) if args.resume else None
+    for r in run(args.iters, args.llm, args.seed, on_keep=git_commit, start=start):
         if "stop" in r:
             print(f"stop: {r['stop']}")
         elif "final" in r:
