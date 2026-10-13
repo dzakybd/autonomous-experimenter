@@ -1,7 +1,7 @@
 """Autonomous Experimenter: an autoresearch-style loop for cross-vertical personalization.
 
-Task: recommend each user's next Quik venue (bodega, deli, pharmacy, convenience store),
-using their Food, Quik, and Shops history from the public Foursquare NYC check-in data
+Task: recommend each user's next Mart venue (bodega, deli, pharmacy, convenience store),
+using their Food, Mart, and Shops history from the public Foursquare NYC check-in data
 (see prepare.py). The question is which signals transfer: other verticals, location,
 repeat visits, or the intent behind the most recent check-ins.
 
@@ -10,7 +10,7 @@ verify mechanically (validation NDCG@10 + paired bootstrap) -> keep (git commit)
 or discard -> log to results.tsv -> repeat. The log is the agent's memory: the
 proposer reads it to avoid repeats and to climb from the current best.
 
-Each user's second-to-last Quik visit is validation; the last is test. The loop only
+Each user's second-to-last Mart visit is validation; the last is test. The loop only
 sees validation. At the end the baseline and the winner are scored once on test.
 
 Usage:
@@ -48,16 +48,16 @@ DEFAULTS = {"pop": {}, "itemknn": {"k": 100, "shrink": 10.0}, "ease": {"lam": 25
 # Signals blended on top of the base model: name -> (high, step). All start at 0 (off).
 BLEND = {
     "cross": (1.0, 0.2),   # weight of Food + Shops history in the user vector (cross-vertical transfer)
-    "geo": (1.0, 0.2),     # proximity of the Quik venue to the user's usual area
-    "repeat": (2.0, 0.5),  # boost Quik venues the user visited before
+    "geo": (1.0, 0.2),     # proximity of the Mart venue to the user's usual area
+    "repeat": (2.0, 0.5),  # boost Mart venues the user visited before
     "seq": (1.0, 0.2),     # attention over the user's 5 most recent check-ins, any vertical
 }
 
 
 # ---------------------------------------------------------------- data
 def targets(orders):
-    """Per user with 2+ Quik visits: second-to-last Quik visit -> val, last -> test."""
-    q = orders[orders["vertical"] == "quik"].copy()
+    """Per user with 2+ Mart visits: second-to-last Mart visit -> val, last -> test."""
+    q = orders[orders["vertical"] == "mart"].copy()
     q["n_before"] = q.groupby("user").cumcount()
     q["pos"] = q.groupby("user").cumcount(ascending=False)
     q = q[q["user"].isin(q.loc[q["pos"] == 1, "user"])]
@@ -74,11 +74,11 @@ class Context:
         self.items = items
         self.X = sp.csr_matrix((np.ones(len(hist)), (hist["user"], hist["item"])), shape=(n_users, n_items))
         self.Xb = (self.X > 0).astype(float)
-        self.is_quik = items["vertical"].to_numpy() == "quik"
-        self.Q = np.flatnonzero(self.is_quik)
+        self.is_mart = items["vertical"].to_numpy() == "mart"
+        self.Q = np.flatnonzero(self.is_mart)
         self.U = target["user"].to_numpy()
         self.truth = np.searchsorted(self.Q, target["item"].to_numpy())
-        self.cold = target["n_before"].to_numpy() <= 1  # at most one earlier Quik visit
+        self.cold = target["n_before"].to_numpy() <= 1  # at most one earlier Mart visit
         by_user = hist.groupby("user")["item"]
         recent = by_user.apply(lambda s: s.to_numpy()[-5:])
         self.recent = [recent.get(u, np.array([], int)) for u in self.U]
@@ -96,7 +96,7 @@ class Context:
         return self._cos[cross]
 
     def weighted(self, cross):
-        return self.Xb @ sp.diags(np.where(self.is_quik, 1.0, cross))
+        return self.Xb @ sp.diags(np.where(self.is_mart, 1.0, cross))
 
 
 # ---------------------------------------------------------------- models
@@ -120,7 +120,7 @@ def score(cfg, c: Context):
         S = np.tile(np.asarray(c.Xb[:, c.Q].sum(0)), (len(c.U), 1))
     elif m == "itemknn":
         sim = cosine(Xw, p["shrink"])[:, c.Q]
-        sim[sim < np.partition(sim, -p["k"], axis=0)[-p["k"]]] = 0  # top-k neighbours per Quik venue
+        sim[sim < np.partition(sim, -p["k"], axis=0)[-p["k"]]] = 0  # top-k neighbours per Mart venue
         S = Xw[c.U] @ sim
     elif m == "ease":  # Steck 2019, closed form
         P = np.linalg.inv((Xw.T @ Xw).toarray() + p["lam"] * np.eye(Xw.shape[1]))
@@ -236,9 +236,9 @@ def propose_llm(history, best):
 
     log = "\n".join(f"{h['iter']}\t{h['status']}\t{h['ndcg']:.4f}\t{h['ndcg_cold']:.4f}\t{h['key']}" for h in history)
     prompt = (
-        "You are tuning a next-visit recommender for Quik-like venues (bodegas, delis, pharmacies, convenience "
+        "You are tuning a next-visit recommender for Mart venues (bodegas, delis, pharmacies, convenience "
         "stores) from Foursquare NYC check-ins. Users also visit Food and Shops venues. Metric: NDCG@10 on "
-        "each user's held-out validation Quik visit.\n"
+        "each user's held-out validation Mart visit.\n"
         f"Base models and params (low, high, log, int): {json.dumps(SPACE)}\n"
         f"Blend weights (max, step): {json.dumps(BLEND)} -- cross = weight of Food+Shops history, geo = proximity "
         "to the user's usual area, repeat = revisit boost, seq = attention over the 5 most recent check-ins.\n"
@@ -270,7 +270,7 @@ def narrate_llm(text: str) -> str:
         output_config={"effort": "low"},
         messages=[{"role": "user", "content": (
             "Write a 120-word, data-driven conclusion for a personalization lead from these recommender "
-            "experiments (next Quik-like venue visit, Foursquare NYC). State the winner, the test lift with its "
+            "experiments (next Mart venue visit, Foursquare NYC). State the winner, the test lift with its "
             "CI, which signals drove it, the effect on cold-start users, one risk, and a concrete online A/B test "
             f"as next step. Use only numbers given.\n\n{text}")}],
     )
@@ -320,7 +320,7 @@ def run(iters=40, use_llm=False, seed=0, on_keep=None):
                 on_keep(f"{status}: {desc} (val ndcg@10 {res['ndcg']:.4f})")
         yield row
 
-    # Final, one-shot check on each user's last Quik visit, which the loop never scored.
+    # Final, one-shot check on each user's last Mart visit, which the loop never scored.
     ct = Context(items, orders, test)
     base_cfg = json.loads(history[0]["key"])
     base_t, best_t = evaluate(base_cfg, ct), evaluate(best, ct)
@@ -358,11 +358,11 @@ def write_report(base_cfg, best, base_t, best_t, prob, ci, ct, use_llm):
     lift = best_t["ndcg"] / base_t["ndcg"] - 1
     cold_lift = best_t["ndcg_cold"] / base_t["ndcg_cold"] - 1
     table = (
-        "| | config | NDCG@10 | NDCG@10, cold users | Recall@10 | Quik coverage |\n|---|---|---|---|---|---|\n"
+        "| | config | NDCG@10 | NDCG@10, cold users | Recall@10 | Mart coverage |\n|---|---|---|---|---|---|\n"
         f"| baseline | `{key(base_cfg)}` | {base_t['ndcg']:.4f} | {base_t['ndcg_cold']:.4f} | {base_t['recall']:.4f} | {base_t['coverage']:.1%} |\n"
         f"| winner | `{key(best)}` | {best_t['ndcg']:.4f} | {best_t['ndcg_cold']:.4f} | {best_t['recall']:.4f} | {best_t['coverage']:.1%} |\n\n"
         f"Lift: {lift:+.1%} NDCG@10 overall ({cold_lift:+.1%} for the {ct.cold.sum()} cold users with at most one "
-        f"earlier Quik visit). Delta 95% CI {ci[0]:+.4f}..{ci[1]:+.4f}; P(delta>0) = {prob:.3f} "
+        f"earlier Mart visit). Delta 95% CI {ci[0]:+.4f}..{ci[1]:+.4f}; P(delta>0) = {prob:.3f} "
         f"(paired bootstrap over {len(ct.U)} users).\n"
         f"Experiments: {len(log)} run, {len(kept) - 1} kept, {(log['status'] == 'discard').sum()} discarded.\n"
     )
@@ -377,14 +377,14 @@ def write_report(base_cfg, best, base_t, best_t, prob, ci, ct, use_llm):
         f"({base_t['ndcg']:.4f} -> {best_t['ndcg']:.4f}); the 95% CI of the delta "
         f"{'excludes zero' if ci[0] > 0 else 'includes zero, so the lift is not conclusive'}. Cold users changed "
         f"by {cold_lift:+.1%}. Check-ins are visits, not deliveries, so treat this as evidence about which signal "
-        "families matter, not a Careem estimate. Next step on real data: a user-randomised A/B test on Quik with "
+        "families matter, not an estimate for any real app. Next step on real data: a user-randomised A/B test on Mart with "
         "orders per user as the primary metric, and coverage, latency, and Food cannibalisation as guardrails."
     )
     REPORT.write_text(
         "# Autonomous Experimenter report\n\n"
-        "Next Quik-like venue (bodega, deli, pharmacy, convenience store) for each user with 2+ such visits, "
-        "using their Food, Quik, and Shops check-ins (Foursquare NYC, public). Loop decisions used each user's "
-        "second-to-last Quik visit; the numbers below are one final run on the last visit, which the loop never saw.\n\n"
+        "Next Mart venue (bodega, deli, pharmacy, convenience store) for each user with 2+ such visits, "
+        "using their Food, Mart, and Shops check-ins (Foursquare NYC, public). Loop decisions used each user's "
+        "second-to-last Mart visit; the numbers below are one final run on the last visit, which the loop never saw.\n\n"
         f"## Result\n\n{table}\n## Conclusion\n\n{narrative}\n\n"
         f"## Path of kept changes\n\n{steps}\n\n"
         f"## Best validation NDCG@10 per base model\n\n| model | NDCG@10 |\n|---|---|\n{fam}\n\n"

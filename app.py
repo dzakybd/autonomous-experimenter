@@ -15,7 +15,7 @@ ITEMS, ORDERS = prepare.load()
 VAL, TEST = ex.targets(ORDERS)
 CT = ex.Context(ITEMS, ORDERS, TEST)
 HAS_KEY = bool(os.environ.get("ANTHROPIC_API_KEY"))
-COLORS = {"quik": "#16a34a", "food": "#f97316", "shops": "#6366f1"}
+COLORS = {"mart": "#16a34a", "food": "#f97316", "shops": "#6366f1"}
 COLUMNS = ["iter", "status", "NDCG@10", "cold NDCG@10", "delta", "P(gain>0)", "change"]
 
 
@@ -89,13 +89,13 @@ def explore(user):
             rows.append([name, rank, f"#{it['item']}", it["category"], round(float(CT.near[r, np.searchsorted(CT.Q, it["item"])]), 2),
                          "HIT" if it["item"] == truth else ""])
     t = ITEMS.iloc[truth]
-    fig.add_scattermap(lat=[t["lat"]], lon=[t["lng"]], mode="markers", name="actual next Quik visit",
+    fig.add_scattermap(lat=[t["lat"]], lon=[t["lng"]], mode="markers", name="actual next Mart visit",
                        marker=dict(size=20, color="#facc15"), text=[t["category"]])
     fig.update_layout(map=dict(style="open-street-map", center=dict(lat=t["lat"], lon=t["lng"]), zoom=12),
                       height=480, margin=dict(l=0, r=0, t=0, b=0), legend=dict(orientation="h"))
-    counts = hist["vertical"].value_counts().reindex(["food", "quik", "shops"], fill_value=0)
-    info = (f"**User {user}**: {counts['food']} Food, {counts['quik']} Quik, {counts['shops']} Shops check-ins "
-            f"before the target. Actual next Quik visit: **{t['category']}** "
+    counts = hist["vertical"].value_counts().reindex(["food", "mart", "shops"], fill_value=0)
+    info = (f"**User {user}**: {counts['food']} Food, {counts['mart']} Mart, {counts['shops']} Shops check-ins "
+            f"before the target. Actual next Mart visit: **{t['category']}** "
             f"({'repeat' if truth in set(hist['item']) else 'new venue'}).")
     table = pd.DataFrame(rows, columns=["model", "rank", "venue", "category", "proximity (0-1)", "hit"])
     return fig, info, table
@@ -104,8 +104,8 @@ def explore(user):
 INTRO = """# Autonomous Experimenter: cross-vertical personalization
 
 An autoresearch-style loop (**modify, verify, keep or discard**) that tunes a recommender on its own. Task:
-predict each user's next **Quik-like** visit (bodega, deli, pharmacy, convenience store) from their **Food,
-Quik, and Shops** history, using the public [Foursquare NYC check-ins](https://huggingface.co/datasets/yyh11/FourSquare_checkin)
+predict each user's next **Mart** visit (bodega, deli, pharmacy, convenience store) from their **Food,
+Mart, and Shops** history, using the public [Foursquare NYC check-ins](https://huggingface.co/datasets/yyh11/FourSquare_checkin)
 (1,080 users, 4,124 venues). Every iteration changes one thing; a paired bootstrap keeps it only if the gain
 is not noise; the winner is scored once on held-out visits. Code: [GitHub](https://github.com/dzakybd/autonomous-experimenter)
 """
@@ -131,7 +131,7 @@ with gr.Blocks(title="Autonomous Experimenter") as demo:
         user = gr.Dropdown(users, value=first, label="User (held-out test visit)")
         info = gr.Markdown()
         user_map = gr.Plot()
-        recs = gr.Dataframe(label="Top-10 Quik venues: popularity vs winner")
+        recs = gr.Dataframe(label="Top-10 Mart venues: popularity vs winner")
         user.change(explore, user, [user_map, info, recs])
         demo.load(explore, user, [user_map, info, recs])
 

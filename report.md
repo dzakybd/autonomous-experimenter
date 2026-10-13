@@ -1,20 +1,20 @@
 # Autonomous Experimenter report
 
-Next Quik-like venue (bodega, deli, pharmacy, convenience store) for each user with 2+ such visits, using their Food, Quik, and Shops check-ins (Foursquare NYC, public). Loop decisions used each user's second-to-last Quik visit; the numbers below are one final run on the last visit, which the loop never saw.
+Next Mart venue (bodega, deli, pharmacy, convenience store) for each user with 2+ such visits, using their Food, Mart, and Shops check-ins (Foursquare NYC, public). Loop decisions used each user's second-to-last Mart visit; the numbers below are one final run on the last visit, which the loop never saw.
 
 ## Result
 
-| | config | NDCG@10 | NDCG@10, cold users | Recall@10 | Quik coverage |
+| | config | NDCG@10 | NDCG@10, cold users | Recall@10 | Mart coverage |
 |---|---|---|---|---|---|
 | baseline | `{"blend": {"cross": 0.0, "geo": 0.0, "repeat": 0.0, "seq": 0.0}, "model": "pop", "params": {}}` | 0.0740 | 0.1429 | 0.1512 | 1.4% |
 | winner | `{"blend": {"cross": 0.2, "geo": 0.6, "repeat": 2.0, "seq": 0.0}, "model": "rp3beta", "params": {"alpha": 0.9, "beta": 0.5}}` | 0.5579 | 0.3299 | 0.7087 | 100.0% |
 
-Lift: +654.2% NDCG@10 overall (+130.8% for the 118 cold users with at most one earlier Quik visit). Delta 95% CI +0.4490..+0.5204; P(delta>0) = 1.000 (paired bootstrap over 721 users).
+Lift: +654.2% NDCG@10 overall (+130.8% for the 118 cold users with at most one earlier Mart visit). Delta 95% CI +0.4490..+0.5204; P(delta>0) = 1.000 (paired bootstrap over 721 users).
 Experiments: 40 run, 9 kept, 30 discarded.
 
 ## Conclusion
 
-The loop replaced the popularity baseline with **rp3beta** plus the cross, geo, repeat signal(s), lifting held-out NDCG@10 by +654.2% (0.0740 -> 0.5579); the 95% CI of the delta excludes zero. Cold users changed by +130.8%. Check-ins are visits, not deliveries, so treat this as evidence about which signal families matter, not a Careem estimate. Next step on real data: a user-randomised A/B test on Quik with orders per user as the primary metric, and coverage, latency, and Food cannibalisation as guardrails.
+The loop replaced the popularity baseline with **rp3beta** plus the cross, geo, repeat signal(s), lifting held-out NDCG@10 by +654.2% (0.0740 -> 0.5579); the 95% CI of the delta excludes zero. Cold users changed by +130.8%. Check-ins are visits, not deliveries, so treat this as evidence about which signal families matter, not a Careem estimate. Next step on real data: a user-randomised A/B test on Mart with orders per user as the primary metric, and coverage, latency, and Food cannibalisation as guardrails.
 
 ## Path of kept changes
 
