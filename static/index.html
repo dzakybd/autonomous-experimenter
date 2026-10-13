@@ -31,7 +31,7 @@
 <a href="https://huggingface.co/datasets/yyh11/FourSquare_checkin">Foursquare NYC check-ins</a> (1,080 users, 4,124 venues). Each iteration changes one thing;
 a paired bootstrap keeps it only if the gain is not noise; the winner is scored once on held-out visits.
 Code and live runner: <a href="https://github.com/dzakybd/autonomous-experimenter">GitHub</a>.</p>
-<p class="note">This page shows a saved run (heuristic proposer, 40 iterations). To run the loop yourself: <code>uv run experimenter.py</code> or <code>uv run --extra app app.py</code> for the Gradio app.</p>
+<p class="note">This page shows the final run: run 5 of 5 (heuristic proposer, resumed from run 4's best, 50 iterations; logs of all five runs are in <code>runs/</code> on GitHub). To run the loop yourself: <code>uv run experimenter.py</code> or <code>uv run --extra app app.py</code> for the Gradio app.</p>
 
 <div class="tabs"><button class="on" data-pane="loop">The loop</button><button data-pane="explore">Explore a user</button></div>
 
