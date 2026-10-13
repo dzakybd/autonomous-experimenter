@@ -8,7 +8,7 @@
     "cross": 0.0,
     "geo": 0.2,
     "here": 0.2,
-    "repeat": 0.5,
+    "repeat": 1.0,
     "seq": 0.0
   }
 }
