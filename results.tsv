@@ -1,3 +1,14 @@
 iter	status	ndcg@10	ndcg_cold	recall@10	coverage	delta	p_improve	config	description
 0	baseline	0.0734	0.1232	0.1456	0.014	+0.0000	1.00	{"blend": {"cross": 0.0, "geo": 0.0, "here": 0.0, "repeat": 0.0, "seq": 0.0}, "model": "pop", "params": {}}	popularity
 1	keep	0.5404	0.2404	0.6865	1.000	+0.4669	1.00	{"blend": {"cross": 0.2, "geo": 0.6, "here": 0.0, "repeat": 2.0, "seq": 0.0}, "model": "rp3beta", "params": {"alpha": 0.9, "beta": 0.5}}	resume from a previous best
+2	discard	0.2439	0.0236	0.4369	0.994	-0.2964	0.00	{"blend": {"cross": 0.0, "geo": 0.0, "here": 0.0, "repeat": 0.0, "seq": 0.0}, "model": "itemknn", "params": {"k": 100, "shrink": 10.0}}	try base model itemknn at defaults
+3	discard	0.2351	0.0246	0.4535	0.987	-0.3052	0.00	{"blend": {"cross": 0.0, "geo": 0.0, "here": 0.0, "repeat": 0.0, "seq": 0.0}, "model": "ease", "params": {"lam": 250.0}}	try base model ease at defaults
+4	discard	0.4541	0.1273	0.6075	0.999	-0.0863	0.00	{"blend": {"cross": 0.0, "geo": 0.0, "here": 0.0, "repeat": 0.0, "seq": 0.0}, "model": "rp3beta", "params": {"alpha": 1.0, "beta": 0.5}}	try base model rp3beta at defaults
+5	discard	0.5363	0.2264	0.6796	1.000	-0.0041	0.01	{"blend": {"cross": 0.2, "geo": 0.4, "here": 0.0, "repeat": 2.0, "seq": 0.0}, "model": "rp3beta", "params": {"alpha": 0.9, "beta": 0.5}}	geo 0.6 -> 0.4
+6	discard	0.5305	0.2256	0.6741	1.000	-0.0098	0.01	{"blend": {"cross": 0.0, "geo": 0.6, "here": 0.0, "repeat": 2.0, "seq": 0.0}, "model": "rp3beta", "params": {"alpha": 0.9, "beta": 0.5}}	cross 0.2 -> 0.0
+7	discard	0.5418	0.2391	0.6879	1.000	+0.0014	0.80	{"blend": {"cross": 0.2, "geo": 0.6, "here": 0.0, "repeat": 2.0, "seq": 0.0}, "model": "rp3beta", "params": {"alpha": 0.74, "beta": 0.5}}	alpha 0.9 -> 0.74
+8	discard	0.5310	0.2239	0.6768	1.000	-0.0093	0.00	{"blend": {"cross": 0.2, "geo": 0.6, "here": 0.0, "repeat": 2.0, "seq": 0.0}, "model": "rp3beta", "params": {"alpha": 0.9, "beta": 0.75}}	beta 0.5 -> 0.75
+9	discard	0.5422	0.2475	0.6907	1.000	+0.0018	0.81	{"blend": {"cross": 0.2, "geo": 0.6, "here": 0.2, "repeat": 2.0, "seq": 0.0}, "model": "rp3beta", "params": {"alpha": 0.9, "beta": 0.5}}	here 0.0 -> 0.2
+10	discard	0.5339	0.2305	0.6810	1.000	-0.0065	0.00	{"blend": {"cross": 0.2, "geo": 0.6, "here": 0.0, "repeat": 2.0, "seq": 0.2}, "model": "rp3beta", "params": {"alpha": 0.9, "beta": 0.5}}	seq 0.0 -> 0.2
+11	discard	0.5387	0.2420	0.6824	1.000	-0.0017	0.17	{"blend": {"cross": 0.2, "geo": 0.8, "here": 0.0, "repeat": 2.0, "seq": 0.0}, "model": "rp3beta", "params": {"alpha": 0.9, "beta": 0.5}}	geo 0.6 -> 0.8
+12	keep	0.5423	0.2391	0.6879	1.000	+0.0020	0.94	{"blend": {"cross": 0.2, "geo": 0.6, "here": 0.0, "repeat": 2.0, "seq": 0.0}, "model": "rp3beta", "params": {"alpha": 0.8, "beta": 0.5}}	alpha 0.9 -> 0.8
