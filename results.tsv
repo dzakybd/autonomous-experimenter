@@ -1,3 +1,11 @@
 iter	status	ndcg@10	ndcg_cold	recall@10	coverage	delta	p_improve	config	description
 0	baseline	0.0734	0.1232	0.1456	0.014	+0.0000	1.00	{"blend": {"cross": 0.0, "geo": 0.0, "here": 0.0, "repeat": 0.0, "seq": 0.0}, "model": "pop", "params": {}}	popularity
 1	keep	0.5423	0.2391	0.6879	1.000	+0.4689	1.00	{"blend": {"cross": 0.2, "geo": 0.6, "here": 0.0, "repeat": 2.0, "seq": 0.0}, "model": "rp3beta", "params": {"alpha": 0.8, "beta": 0.5}}	resume from a previous best
+2	discard	0.2439	0.0236	0.4369	0.994	-0.2984	0.00	{"blend": {"cross": 0.0, "geo": 0.0, "here": 0.0, "repeat": 0.0, "seq": 0.0}, "model": "itemknn", "params": {"k": 100, "shrink": 10.0}}	try base model itemknn at defaults
+3	discard	0.2351	0.0246	0.4535	0.987	-0.3072	0.00	{"blend": {"cross": 0.0, "geo": 0.0, "here": 0.0, "repeat": 0.0, "seq": 0.0}, "model": "ease", "params": {"lam": 250.0}}	try base model ease at defaults
+4	discard	0.4541	0.1273	0.6075	0.999	-0.0882	0.00	{"blend": {"cross": 0.0, "geo": 0.0, "here": 0.0, "repeat": 0.0, "seq": 0.0}, "model": "rp3beta", "params": {"alpha": 1.0, "beta": 0.5}}	try base model rp3beta at defaults
+5	discard	0.5383	0.2328	0.6838	1.000	-0.0040	0.01	{"blend": {"cross": 0.2, "geo": 0.4, "here": 0.0, "repeat": 2.0, "seq": 0.0}, "model": "rp3beta", "params": {"alpha": 0.8, "beta": 0.5}}	geo 0.6 -> 0.4
+6	discard	0.5301	0.2254	0.6727	1.000	-0.0122	0.00	{"blend": {"cross": 0.0, "geo": 0.6, "here": 0.0, "repeat": 2.0, "seq": 0.0}, "model": "rp3beta", "params": {"alpha": 0.8, "beta": 0.5}}	cross 0.2 -> 0.0
+7	discard	0.5403	0.2366	0.6865	1.000	-0.0020	0.12	{"blend": {"cross": 0.2, "geo": 0.6, "here": 0.0, "repeat": 2.0, "seq": 0.0}, "model": "rp3beta", "params": {"alpha": 0.64, "beta": 0.5}}	alpha 0.8 -> 0.64
+8	discard	0.5309	0.2215	0.6755	1.000	-0.0114	0.00	{"blend": {"cross": 0.2, "geo": 0.6, "here": 0.0, "repeat": 2.0, "seq": 0.0}, "model": "rp3beta", "params": {"alpha": 0.8, "beta": 0.75}}	beta 0.5 -> 0.75
+9	keep	0.5488	0.2614	0.6949	1.000	+0.0065	0.94	{"blend": {"cross": 0.2, "geo": 0.6, "here": 0.6, "repeat": 2.0, "seq": 0.0}, "model": "rp3beta", "params": {"alpha": 0.8, "beta": 0.5}}	here 0.0 -> 0.6
