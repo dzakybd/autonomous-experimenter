@@ -3,3 +3,4 @@ iter	status	ndcg@10	ndcg_cold	recall@10	coverage	delta	p_improve	config	descript
 1	keep	0.2439	0.0236	0.4369	0.994	+0.1705	1.00	{"blend": {"cross": 0.0, "geo": 0.0, "here": 0.0, "repeat": 0.0, "seq": 0.0}, "model": "itemknn", "params": {"k": 100, "shrink": 10.0}}	try base model itemknn at defaults
 2	discard	0.2351	0.0246	0.4535	0.987	-0.0088	0.10	{"blend": {"cross": 0.0, "geo": 0.0, "here": 0.0, "repeat": 0.0, "seq": 0.0}, "model": "ease", "params": {"lam": 250.0}}	try base model ease at defaults
 3	keep	0.4541	0.1273	0.6075	0.999	+0.2102	1.00	{"blend": {"cross": 0.0, "geo": 0.0, "here": 0.0, "repeat": 0.0, "seq": 0.0}, "model": "rp3beta", "params": {"alpha": 1.0, "beta": 0.5}}	try base model rp3beta at defaults
+4	keep	0.4897	0.1273	0.6089	0.999	+0.0356	1.00	{"blend": {"cross": 0.0, "geo": 0.0, "here": 0.0, "repeat": 0.5, "seq": 0.0}, "model": "rp3beta", "params": {"alpha": 1.0, "beta": 0.5}}	repeat 0.0 -> 0.5
