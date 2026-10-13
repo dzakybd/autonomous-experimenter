@@ -50,6 +50,7 @@ BLEND = {
     "cross": (1.0, 0.2),   # weight of Food + Shops history in the user vector (cross-vertical transfer)
     "geo": (1.0, 0.2),     # proximity of the Mart venue to the user's usual area
     "here": (1.0, 0.2),    # proximity to where the user is now (their latest check-in, any vertical)
+    "local": (1.0, 0.2),   # venues popular near where the user is now (popularity x 'here' proximity)
     "repeat": (2.0, 0.5),  # boost Mart venues the user visited before
     "seq": (1.0, 0.2),     # attention over the user's 5 most recent check-ins, any vertical
 }
@@ -94,6 +95,7 @@ class Context:
         dy = (lat[self.Q][None] - lat[h][:, None]) * 111.0
         dx = (lng[self.Q][None] - lng[h][:, None]) * 111.0 * np.cos(np.radians(40.7))
         self.here = np.where(h[:, None] >= 0, np.exp(-np.hypot(dx, dy) / GEO_KM), 0.0)
+        self.local = rownorm(np.log1p(np.asarray(self.Xb[:, self.Q].sum(0)))) * self.here
         self._cos = {}
 
     def cosine(self, cross):
@@ -150,6 +152,8 @@ def score(cfg, c: Context):
         S += b["geo"] * c.near
     if b["here"]:
         S += b["here"] * c.here
+    if b["local"]:
+        S += b["local"] * c.local
     if b["seq"]:
         sim = c.cosine(b["cross"])
         A = np.zeros_like(S)
@@ -249,7 +253,7 @@ def propose_llm(history, best):
         "each user's held-out validation Mart visit.\n"
         f"Base models and params (low, high, log, int): {json.dumps(SPACE)}\n"
         f"Blend weights (max, step): {json.dumps(BLEND)} -- cross = weight of Food+Shops history, geo = proximity "
-        "to the user's usual area, here = proximity to the user's latest check-in, repeat = revisit boost, seq = attention over the 5 most recent check-ins.\n"
+        "to the user's usual area, here = proximity to the user's latest check-in, local = popularity near the latest check-in, repeat = revisit boost, seq = attention over the 5 most recent check-ins.\n"
         f"Current best: {key(best)}\nHistory (iter, status, ndcg, ndcg_cold, config):\n{log}\n\n"
         "Propose exactly ONE new config that differs from the best by a single atomic change and is not in "
         "the history. Use the history to decide what is likely to help. Give a one-line hypothesis."
