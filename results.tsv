@@ -1,2 +1,3 @@
 iter	status	ndcg@10	ndcg_cold	recall@10	coverage	delta	p_improve	config	description
 0	baseline	0.0734	0.1232	0.1456	0.014	+0.0000	1.00	{"blend": {"cross": 0.0, "geo": 0.0, "here": 0.0, "repeat": 0.0, "seq": 0.0}, "model": "pop", "params": {}}	popularity
+1	keep	0.5404	0.2404	0.6865	1.000	+0.4669	1.00	{"blend": {"cross": 0.2, "geo": 0.6, "here": 0.0, "repeat": 2.0, "seq": 0.0}, "model": "rp3beta", "params": {"alpha": 0.9, "beta": 0.5}}	resume from a previous best

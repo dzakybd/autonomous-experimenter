@@ -1,11 +1,14 @@
 {
-  "model": "pop",
-  "params": {},
+  "model": "rp3beta",
+  "params": {
+    "alpha": 0.9,
+    "beta": 0.5
+  },
   "blend": {
-    "cross": 0.0,
-    "geo": 0.0,
+    "cross": 0.2,
+    "geo": 0.6,
     "here": 0.0,
-    "repeat": 0.0,
+    "repeat": 2.0,
     "seq": 0.0
   }
 }
