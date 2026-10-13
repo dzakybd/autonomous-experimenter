@@ -212,7 +212,7 @@ def propose_heuristic(history, best, rng):
         knob = knobs[rng.integers(len(knobs))]
         if knob in BLEND:
             old, step = blend[knob], BLEND[knob][1]
-            blend[knob] = old + rng.choice([-2, -1, 1, 2]) * step if old else step
+            blend[knob] = old + rng.choice([-2, -1, 1, 2]) * step if old else rng.choice([1, 2, 3]) * step
         else:
             lo, hi, log, _ = SPACE[best["model"]][knob]
             old, f = params[knob], rng.choice([0.5, 0.7, 1.4, 2.0])
